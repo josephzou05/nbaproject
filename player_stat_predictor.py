@@ -4,10 +4,8 @@ import pandas as pd
 import logging
 import sys
 
-# Setup logging for better visibility
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 
-# Function to get Player ID by Partial Name Input (Active Players Only)
 def getPlayerID(playerName):
     matchingPlayers = []
     for player in players.get_active_players():
@@ -34,7 +32,6 @@ def getPlayerID(playerName):
     else:
         return matchingPlayers[0]['id'], matchingPlayers[0]['full_name']
 
-# Function to fetch Player Game Logs
 def getPlayerData(playerName, season="2024-25"):
     playerID, fullName = getPlayerID(playerName)
     logging.info(f"\nFetching game logs for: {fullName}")
@@ -46,7 +43,6 @@ def getPlayerData(playerName, season="2024-25"):
     dataFrame = gameLog.get_data_frames()[0]
     return dataFrame, fullName, playerID
 
-# Function to find Team Abbreviation from Team ID
 def getTeamIdByAbbreviation(abbreviation):
     nbaTeams = teams.get_teams()
     teamId = None
@@ -56,7 +52,6 @@ def getTeamIdByAbbreviation(abbreviation):
             break
     return teamId
 
-# Function to find Team Name from Team ID
 def findTeamName(teamID):
     nbaTeams = teams.get_teams()
     teamName = None
@@ -66,14 +61,7 @@ def findTeamName(teamID):
             break
     return teamName
 
-# Function to get Opponent Team ID from the Game Logs
-# Function to get Opponent Team ID from Game Logs: 
-# Given a game logs DataFrame, this function extracts unique 
-# opponent team abbreviations from the MATCHUP column, 
-# converts them to team IDs, displays them for user selection, 
-# and returns the chosen team’s ID (or None if no valid choice is made).
 def getOpponentTeamId(dataFrame):
-    # Extract opponent team abbreviations from MATCHUP column
     opponentAbbreviations = dataFrame['MATCHUP'].apply(lambda x: x.split(' ')[-1]).unique()
     opponentTeamIds = []
     for abbrev in opponentAbbreviations:
@@ -94,7 +82,6 @@ def getOpponentTeamId(dataFrame):
     return None
 
 
-# Function to fetch recent opponent team stats
 def getOpponentTeamStats(teamID, rankings, season="2024-25", numGames=5):
     # Fetch recent team game logs
     logs = teamgamelogs.TeamGameLogs(
@@ -107,14 +94,11 @@ def getOpponentTeamStats(teamID, rankings, season="2024-25", numGames=5):
     if dataFrame.empty:
         return None
 
-    # Filter only numeric columns for calculations
     numericStats = ['PTS', 'REB', 'AST', 'STL', 'BLK']
     teamGames = dataFrame[numericStats].head(numGames).apply(pd.to_numeric, errors='coerce')
     
-    # Calculate averages for last 'numGames'
     teamAvg = teamGames.mean()
     
-    # Add rankings
     teamRankings = {stat: rankings[stat].get(teamID, 'N/A') for stat in numericStats}
     
     teamAvg = teamAvg.round(1).to_dict()
@@ -122,7 +106,6 @@ def getOpponentTeamStats(teamID, rankings, season="2024-25", numGames=5):
     
     return teamAvg
 
-# Function to calculate league-wide team rankings
 def getLeagueTeamRankings(season="2024-25"):
     logging.info("\nFetching league-wide team statistics for rankings...")
     logs = teamgamelogs.TeamGameLogs(
@@ -131,7 +114,6 @@ def getLeagueTeamRankings(season="2024-25"):
     )
     dataFrame = logs.get_data_frames()[0]
     
-    # Aggregate stats per team
     aggregated = dataFrame.groupby('TEAM_ID').agg({
         'PTS': 'mean',
         'REB': 'mean',
@@ -140,7 +122,6 @@ def getLeagueTeamRankings(season="2024-25"):
         'BLK': 'mean'
     }).reset_index()
     
-    # Calculate rankings
     stats = ['PTS', 'REB', 'AST', 'STL', 'BLK']
     rankings = {}
     for stat in stats:
@@ -150,7 +131,6 @@ def getLeagueTeamRankings(season="2024-25"):
     logging.info("League-wide team rankings calculated.")
     return rankings
 
-# Function to calculate weighted averages of player stats
 def calculateAverages(dataFrame, numGames=5):
     stats = ['PTS', 'REB', 'AST', 'STL', 'BLK']
     stats = [stat for stat in stats if stat in dataFrame.columns]
@@ -182,14 +162,12 @@ def calculateAverages(dataFrame, numGames=5):
 
 from nba_api.stats.endpoints import commonteamroster
 
-# Function to get player position with standardized codes
 def getPlayerPosition(playerID, season="2024-25"):
     try:
         info = commonplayerinfo.CommonPlayerInfo(player_id=playerID)
         dataFrame = info.get_data_frames()[0]
         positionFull = dataFrame['POSITION'][0].strip()
         
-        # Mapping full position names to shorthand codes
         positionMap = {
             'G': 'G',
             'SG': 'SG',
@@ -204,10 +182,8 @@ def getPlayerPosition(playerID, season="2024-25"):
             None: ''
         }
         
-        # Handle cases where 'POSITION' might be in full name or shorthand
         positionShorthand = positionMap.get(positionFull, '')
         if not positionShorthand:
-            # Attempt to derive shorthand from first letter if possible
             if positionFull.upper() in ['G', 'SG', 'SF', 'PF', 'C']:
                 positionShorthand = positionFull.upper()
             else:
@@ -218,14 +194,12 @@ def getPlayerPosition(playerID, season="2024-25"):
         logging.error(f"Error fetching position for player ID {playerID}: {e}")
         return None
 
-# Function to calculate matchup deltas
 def getMatchupDeltas(opponentTeamID, position, season="2024-25"):
     teamName = findTeamName(opponentTeamID)
     if not teamName:
         teamName = "Unknown Team"
     logging.info(f"\nCalculating matchup deltas for position: {position} against {teamName}...")
     allPlayers = players.get_active_players()
-    # Safely access 'position' key and compare
     samePositionPlayers = [p for p in allPlayers if p.get('position', '') == position]
     
     deltas = {'PTS': [], 'REB': [], 'AST': [], 'STL': [], 'BLK': []}
@@ -245,15 +219,11 @@ def getMatchupDeltas(opponentTeamID, position, season="2024-25"):
             dataFrame = gameLog.get_data_frames()[0]
             if dataFrame.empty:
                 continue
-            # Games against the opponent
             matchupGames = dataFrame[dataFrame['MATCHUP'].str.contains(f"@ {teamName}|vs. {teamName}")]
             if matchupGames.empty:
                 continue
-            # Calculate average stats in matchup games
             matchupAvg = matchupGames[['PTS', 'REB', 'AST', 'STL', 'BLK']].mean()
-            # Calculate season averages
             seasonAvg = dataFrame[['PTS', 'REB', 'AST', 'STL', 'BLK']].mean()
-            # Calculate deltas
             delta = matchupAvg - seasonAvg
             for stat in deltas.keys():
                 deltas[stat].append(delta.get(stat, 0))
@@ -261,12 +231,10 @@ def getMatchupDeltas(opponentTeamID, position, season="2024-25"):
             logging.error(f"Error processing player {player['full_name']}: {e}")
             continue
     
-    # Calculate average deltas
     avgDeltas = {stat: round(pd.Series(values).mean(), 2) if values else 0 for stat, values in deltas.items()}
     logging.info("Matchup deltas calculated.")
     return avgDeltas
 
-# Function to adjust projected stats based on matchup deltas
 def calculateProjectedStats(projectedLine, matchupDeltas):
     projected = {}
     for stat, value in projectedLine.items():
@@ -277,7 +245,6 @@ def calculateProjectedStats(projectedLine, matchupDeltas):
             projected[stat] = value
     return projected
 
-# Main Program
 if __name__ == "__main__":
     # Fetch league-wide team rankings once to avoid redundant API calls
     try:
@@ -316,7 +283,6 @@ if __name__ == "__main__":
                 else:
                     print("Could not fetch opponent team stats.")
                 
-                # Get player's position
                 playerPosition = getPlayerPosition(playerID, season=season)
                 if playerPosition:
                     matchupDeltas = getMatchupDeltas(opponentTeam, playerPosition, season=season)
@@ -328,10 +294,8 @@ if __name__ == "__main__":
             else:
                 print("No opponent team selected for strength analysis.")
 
-            # Calculate projected averages
             projectedLine = calculateAverages(dataFrame, numGames=numGames)
             
-            # Adjust projections based on matchup deltas
             if opponentTeam and playerPosition and matchupDeltas:
                 projectedLine = calculateProjectedStats(projectedLine, matchupDeltas)
             
@@ -339,7 +303,6 @@ if __name__ == "__main__":
             for stat, value in projectedLine.items():
                 print(f"{stat}: {value}")
             
-            # Save projections to CSV
             fileName = f"{fullName.replace(' ', '_')}_projected_stats.csv"
             pd.DataFrame([projectedLine]).to_csv(fileName, index=False)
             print(f"Projected stats saved to '{fileName}'.")
@@ -349,11 +312,5 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"An error occurred: {e}")
         print("\n--------------------------------------\n")
-
-
-
-# hello testing git and pushes
-
-# yippee it worked
 
 
